@@ -123,7 +123,7 @@ class NozzleFinder():
 
 if __name__ == "__main__":
 
-    filename = "img1.png"
+    filename = "images/img1.png"
     img = cv.imread(filename)
     nozzle = NozzleFinder(img)
 
@@ -137,6 +137,7 @@ if __name__ == "__main__":
         filename = filename.split(".")
         filename[0] += "_Detected"
         filename = ".".join(filename)
-        print(filename)
-        cv.imwrite(filename, img)
+
+        output = filename.split("/")[1]
+        cv.imwrite(output, img)
         print(center)
