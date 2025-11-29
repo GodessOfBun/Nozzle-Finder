@@ -25,14 +25,12 @@ class NozzleFinder():
         opening = cv.morphologyEx(threshold,cv.MORPH_CLOSE,kernel, iterations = 1)
         opening = cv.morphologyEx(opening,cv.MORPH_OPEN,kernel, iterations = 1) 
 
-
         # Calculate sure background area
         kernel = np.ones((5,5),np.uint8)
         sure_bg = cv.dilate(opening,kernel,iterations=3)
 
         # Calculate sure foreground area
         dist_transform = cv.distanceTransform(opening,cv.DIST_L2,5)
-        cv.imshow("trans", np.uint8(dist_transform))
         ret, sure_fg = cv.threshold(dist_transform, 20,255,0) # TODO: 20 is a magic number, 
 
 
@@ -50,6 +48,8 @@ class NozzleFinder():
         gray = self.gray.copy()
         markers[unknown==255] = 0
         markers = cv.watershed(self.img, markers)
+
+        #Todo: For testing purposes only.
         gray[markers == 1] = 0
         gray[markers == 2] = 255
         gray[markers == 3] = 200
@@ -66,6 +66,7 @@ class NozzleFinder():
 
         # Find contours
         contours, hierarchy = cv.findContours(threshold, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+        
         # Discard small and big contours and simplify them.
         contours = [cv.approxPolyDP(x, 0.015*cv.arcLength(x,True),True)  for x in contours 
                     if cv.contourArea(x) > self.min_nozzle_size and cv.contourArea(x) < self.max_nozzle_size]
