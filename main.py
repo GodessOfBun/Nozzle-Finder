@@ -4,16 +4,23 @@ from matplotlib import pyplot as plt
 
 class NozzleFinder():
     def __init__(self, img):
+        self.resized = False
 
-        self.img = blur = cv.GaussianBlur(img,(5,5),0)
+        if img.shape[1] > 1920:
+            img = cv.resize(img, (int(img.shape[1]/2), int(img.shape[0]/2)))
+            self.resized = 2
+
+        self.img = cv.GaussianBlur(img,(5,5),0)
         self.gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
-        self.min_nozzle_size = 2390
+
+        self.min_nozzle_size = 2390 # Todo: Calculate from image size etc.
         self.max_nozzle_size = 52795
 
         self.circle_tolerance = 1.4
         self.threshold_mode = 0
         self.threshold_value = 0
+        self.threshold_step = 10
         # Todo: implement dynamic ROI
         
 
@@ -64,6 +71,7 @@ class NozzleFinder():
         threshold = self.get_threshold(gray)
         threshold = self.remove_noise(threshold)
 
+
         # Find contours
         contours, hierarchy = cv.findContours(threshold, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
         
@@ -71,14 +79,24 @@ class NozzleFinder():
         contours = [cv.approxPolyDP(x, 0.015*cv.arcLength(x,True),True)  for x in contours 
                     if cv.contourArea(x) > self.min_nozzle_size and cv.contourArea(x) < self.max_nozzle_size]
         
+        contours = sorted(contours, key=cv.contourArea)
         circles = []
         # Compare contour to ideal circle.
         if(contours):
             for cnt in contours:
-                cir = cv.minEnclosingCircle(cnt)
-                if((cir[1] * cir[1] * 3.14) / cv.contourArea(cnt) < self.circle_tolerance): # If the difference between areas is less than tolerance, contour is a circular
-                    circles.append(cir)
+                center, radius = cv.minEnclosingCircle(cnt)
+
+                if((radius * radius * 3.14) / cv.contourArea(cnt) < self.circle_tolerance): # If the difference between areas is less than tolerance, contour is a circular
+                    if(self.resized):
+                        center = np.multiply(center, self.resized)
+                        radius = radius * self.resized
+
+                    circles.append([center, radius])
         
+
+        image = cv.drawContours(self.img, contours, -1, (0,255,0), 3)
+        cv.imwrite("debug.jpg", image)
+        # Todo: handle multiple circles detected.
         return circles
     
     def get_threshold(self, gray):
@@ -93,7 +111,7 @@ class NozzleFinder():
 
 
     def get_nozzle_pos(self):
-        # Todo: Add video and sampling/median support
+        # Todo: Add video and sampling/median support, perhaps compare two method's results?
         circles = self.find_circle(self.gray)
         if(circles):
             print(f'Nozzle found with method {self.threshold_mode} at pos: {circles[0][0]}, {circles[0][1]}')
@@ -102,7 +120,7 @@ class NozzleFinder():
             while(not circles):
                 print(f'Attempting  with method {self.threshold_mode} thresh={self.threshold_value}')
                 circles = self.find_circle(self.gray)
-                self.threshold_value += 5
+                self.threshold_value += self.threshold_step
                 
                 if self.threshold_value >= 250:
                     break
@@ -120,11 +138,23 @@ class NozzleFinder():
             return circles[0]
         else: 
             return None
+        
+    def set_image(self, img):
+        self.resized = False
+
+        if img.shape[1] > 1920:
+            img = cv.resize(img, (int(img.shape[1]/2), int(img.shape[0]/2)))
+            self.resized = 2
+
+        self.img = cv.GaussianBlur(img,(5,5),0)
+        self.gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+
+
 
 
 if __name__ == "__main__":
 
-    filename = "images/img1.png"
+    filename = "images/MS4.jpg"
     img = cv.imread(filename)
     nozzle = NozzleFinder(img)
 
@@ -132,7 +162,6 @@ if __name__ == "__main__":
     center = nozzle.get_nozzle_pos()
     if(center):
         center = (np.uint16(center[0]), np.uint16(center[1]))
-        print(center)
         img = cv.circle(img, center[0], center[1], (0,255,0), 2)
 
         filename = filename.split(".")
@@ -141,4 +170,3 @@ if __name__ == "__main__":
 
         output = filename.split("/")[1]
         cv.imwrite(output, img)
-        print(center)
